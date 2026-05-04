@@ -8,7 +8,7 @@ router.get('/', async (req, res) => {
   try {
     const { rows } = await pool.query(`
       SELECT e.*,
-        ROUND(
+        ROUND((
           COALESCE(e.balance_initial, 0) +
           (CURRENT_DATE - COALESCE(e.balance_date, CURRENT_DATE))::float
             * COALESCE(e.accrual_rate, 15) / 365.0 -
@@ -16,9 +16,8 @@ router.get('/', async (req, res) => {
             SELECT SUM(v.days_count) FROM vacations v
             WHERE v.employee_id = e.id AND v.status = 'approved'
             AND v.start_date >= COALESCE(e.balance_date, CURRENT_DATE)
-          ), 0),
-          2
-        ) AS current_balance,
+          ), 0)
+        )::numeric, 2) AS current_balance,
         COALESCE((
           SELECT SUM(o.hours) FROM overtime o
           WHERE o.employee_id = e.id AND o.status = 'approved'
