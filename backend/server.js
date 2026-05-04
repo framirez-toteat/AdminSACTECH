@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const db = require('./db');
+const pool = require('./db');
 
 const app = express();
 app.use(cors());
@@ -12,28 +12,34 @@ app.use('/api/vacations', require('./routes/vacations'));
 app.use('/api/overtime', require('./routes/overtime'));
 app.use('/api/visits', require('./routes/visits'));
 
-app.get('/api/dashboard', (req, res) => {
-  const yearMonth = new Date().toISOString().slice(0, 7);
+app.get('/api/dashboard', async (req, res) => {
+  try {
+    const yearMonth = new Date().toISOString().slice(0, 7);
 
-  const totalEmployees = db.prepare('SELECT COUNT(*) as count FROM employees').get();
-  const pendingVacations = db.prepare("SELECT COUNT(*) as count FROM vacations WHERE status = 'pending'").get();
-  const pendingOvertime = db.prepare("SELECT COUNT(*) as count FROM overtime WHERE status = 'pending'").get();
-  const overtimeThisMonth = db.prepare(`
-    SELECT COALESCE(SUM(hours), 0) as total FROM overtime
-    WHERE status = 'approved' AND strftime('%Y-%m', date) = ?
-  `).get(yearMonth);
-  const visitsThisMonth = db.prepare(`
-    SELECT COUNT(*) as count FROM client_visits
-    WHERE strftime('%Y-%m', date) = ?
-  `).get(yearMonth);
+    const [totalEmployees, pendingVacations, pendingOvertime, overtimeThisMonth, visitsThisMonth] = await Promise.all([
+      pool.query('SELECT COUNT(*) AS count FROM employees'),
+      pool.query("SELECT COUNT(*) AS count FROM vacations WHERE status = 'pending'"),
+      pool.query("SELECT COUNT(*) AS count FROM overtime WHERE status = 'pending'"),
+      pool.query(`
+        SELECT COALESCE(SUM(hours), 0) AS total FROM overtime
+        WHERE status = 'approved' AND TO_CHAR(date, 'YYYY-MM') = $1
+      `, [yearMonth]),
+      pool.query(`
+        SELECT COUNT(*) AS count FROM client_visits
+        WHERE TO_CHAR(date, 'YYYY-MM') = $1
+      `, [yearMonth])
+    ]);
 
-  res.json({
-    totalEmployees: totalEmployees.count,
-    pendingVacations: pendingVacations.count,
-    pendingOvertime: pendingOvertime.count,
-    overtimeHoursThisMonth: overtimeThisMonth.total,
-    visitsThisMonth: visitsThisMonth.count
-  });
+    res.json({
+      totalEmployees: parseInt(totalEmployees.rows[0].count),
+      pendingVacations: parseInt(pendingVacations.rows[0].count),
+      pendingOvertime: parseInt(pendingOvertime.rows[0].count),
+      overtimeHoursThisMonth: parseFloat(overtimeThisMonth.rows[0].total),
+      visitsThisMonth: parseInt(visitsThisMonth.rows[0].count)
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Servir el frontend en producción
