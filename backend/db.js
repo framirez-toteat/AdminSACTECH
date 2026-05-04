@@ -1,4 +1,9 @@
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
+
+// Devolver fechas como strings en lugar de objetos Date
+types.setTypeParser(1082, val => val);  // DATE
+types.setTypeParser(1114, val => val);  // TIMESTAMP
+types.setTypeParser(1184, val => val);  // TIMESTAMPTZ
 
 // Parseo manual para tolerar contraseñas con caracteres especiales (@, #, etc.)
 function parseDbUrl(url) {
