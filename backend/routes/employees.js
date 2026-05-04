@@ -17,11 +17,11 @@ router.get('/', async (req, res) => {
             WHERE v.employee_id = e.id AND v.status = 'approved'
             AND v.start_date >= COALESCE(e.balance_date, CURRENT_DATE)
           ), 0)
-        )::numeric, 2) AS current_balance,
+        )::numeric, 2)::float AS current_balance,
         COALESCE((
           SELECT SUM(o.hours) FROM overtime o
           WHERE o.employee_id = e.id AND o.status = 'approved'
-        ), 0) AS overtime_hours_total
+        ), 0)::float AS overtime_hours_total
       FROM employees e
       ORDER BY e.name
     `);
